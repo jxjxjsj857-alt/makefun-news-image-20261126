@@ -1,30 +1,43 @@
-"""Entry program for make.fun news-image-20261126.
+"""make.fun news-image-20261126 entrypoint.
 
-Copies the pre-rendered front page (entry.png, drawn by draw_news.py)
-to the grader's output directory as entry.png. Standard library only,
-no network, deterministic: both runs write identical bytes.
+Writes the front page for Thursday 26 November 2026 to the grader's
+output directory. The page itself is pre-drawn (see draw_news.py) and
+stored beside this file as entry.png; this program only validates it
+and places an identical copy at the required location.
+
+Standard library only, no network, deterministic: repeated runs emit
+byte-identical output.
 """
 import os
-import shutil
+from pathlib import Path
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "entry.png")
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+MAX_BYTES = 1_048_576
+SOURCE_NAME = "entry.png"
 
 
-def main():
-    with open(SRC, "rb") as f:
-        head = f.read(8)
-    if head != b"\x89PNG\r\n\x1a\n":
-        raise SystemExit("entry.png is not a PNG file")
-    size = os.path.getsize(SRC)
-    if size > 1048576:
-        raise SystemExit("entry.png exceeds the 1 MiB limit")
-    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
-    os.makedirs(out_dir, exist_ok=True)
-    dst = os.path.join(out_dir, "entry.png")
-    shutil.copyfile(SRC, dst)
-    print("wrote", dst, size, "bytes")
+def locate_source() -> Path:
+    here = Path(__file__).resolve().parent
+    return here / SOURCE_NAME
+
+
+def destination() -> Path:
+    out = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
+    out.mkdir(parents=True, exist_ok=True)
+    return out / SOURCE_NAME
+
+
+def run() -> None:
+    src = locate_source()
+    payload = src.read_bytes()
+    if payload[:8] != PNG_MAGIC:
+        raise SystemExit(f"{src} does not start with a PNG signature")
+    if len(payload) > MAX_BYTES:
+        raise SystemExit(f"{src} is {len(payload)} bytes, over the 1 MiB cap")
+    dst = destination()
+    dst.write_bytes(payload)
+    print(f"entry written to {dst} ({len(payload)} bytes)")
 
 
 if __name__ == "__main__":
-    main()
+    run()
